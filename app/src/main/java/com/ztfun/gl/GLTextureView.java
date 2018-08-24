@@ -14,27 +14,38 @@
  * limitations under the License.
  */
 
+/*
+ * Based on GLSurfaceView of android-26
+ * Ref. https://stackoverflow.com/q/12061419
+ */
+
 package com.ztfun.gl;
 
+
+
 import android.content.Context;
+import android.graphics.SurfaceTexture;
+import android.opengl.EGLExt;
+import android.opengl.GLDebugHelper;
 import android.os.Trace;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-
+import android.view.TextureView.SurfaceTextureListener;
+import android.view.TextureView;
 import java.io.Writer;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGL11;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
-import javax.microedition.khronos.opengles.GL;
 import javax.microedition.khronos.opengles.GL10;
+import javax.microedition.khronos.opengles.GL;
+
+import android.opengl.EGL14;
 
 /**
  * An implementation of SurfaceView that uses the dedicated surface for
@@ -159,8 +170,8 @@ import javax.microedition.khronos.opengles.GL10;
  * </pre>
  *
  */
-public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback2 {
-    private final static String TAG = "GLSurfaceView";
+public class GLTextureView extends TextureView implements SurfaceTextureListener {
+    private final static String TAG = "GLTextureView";
     private final static boolean LOG_ATTACH_DETACH = false;
     private final static boolean LOG_THREADS = false;
     private final static boolean LOG_PAUSE_RESUME = false;
@@ -168,6 +179,10 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
     private final static boolean LOG_RENDERER = false;
     private final static boolean LOG_RENDERER_DRAW_FRAME = false;
     private final static boolean LOG_EGL = false;
+
+    /** @hide, from android.os.Trace.java*/
+    public static final long TRACE_TAG_VIEW = 1L << 3;
+
     /**
      * The renderer only renders
      * when the surface is created, or when {@link #requestRender} is called.
@@ -197,7 +212,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
     public final static int DEBUG_CHECK_GL_ERROR = 1;
 
     /**
-     * Log GL calls to the system log at "verbose" level with tag "GLSurfaceView".
+     * Log GL calls to the system log at "verbose" level with tag "GLTextureView".
      *
      * @see #getDebugFlags
      * @see #setDebugFlags
@@ -208,7 +223,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * Standard View constructor. In order to render something, you
      * must call {@link #setRenderer} to register a renderer.
      */
-    public GLSurfaceView(Context context) {
+    public GLTextureView(Context context) {
         super(context);
         init();
     }
@@ -217,7 +232,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * Standard View constructor. In order to render something, you
      * must call {@link #setRenderer} to register a renderer.
      */
-    public GLSurfaceView(Context context, AttributeSet attrs) {
+    public GLTextureView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }
@@ -236,18 +251,60 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
     }
 
     private void init() {
-        // Install a SurfaceHolder.Callback so we get notified when the
-        // underlying surface is created and destroyed
-        SurfaceHolder holder = getHolder();
-        holder.addCallback(this);
-        // setFormat is done by SurfaceView in SDK 2.3 and newer. Uncomment
-        // this statement if back-porting to 2.2 or older:
-        // holder.setFormat(PixelFormat.RGB_565);
-        //
-        // setType is not needed for SDK 2.0 or newer. Uncomment this
-        // statement if back-porting this code to older SDKs.
-        // holder.setType(SurfaceHolder.SURFACE_TYPE_GPU);
+        setSurfaceTextureListener(this);
     }
+
+    // Implementation of android.view.TextureView$SurfaceTextureListener
+    /**
+     * Invoked when a {@link TextureView}'s SurfaceTexture is ready for use.
+     *
+     * @param surface The surface returned by
+     *                {@link android.view.TextureView#getSurfaceTexture()}
+     * @param width The width of the surface
+     * @param height The height of the surface
+     */
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        
+    }
+
+    /**
+     * Invoked when the {@link SurfaceTexture}'s buffers size changed.
+     *
+     * @param surface The surface returned by
+     *                {@link android.view.TextureView#getSurfaceTexture()}
+     * @param width The new width of the surface
+     * @param height The new height of the surface
+     */
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+    }
+
+    /**
+     * Invoked when the specified {@link SurfaceTexture} is about to be destroyed.
+     * If returns true, no rendering should happen inside the surface texture after this method
+     * is invoked. If returns false, the client needs to call {@link SurfaceTexture#release()}.
+     * Most applications should return true.
+     *
+     * @param surface The surface about to be destroyed
+     */
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        return false;
+    }
+
+    /**
+     * Invoked when the specified {@link SurfaceTexture} is updated through
+     * {@link SurfaceTexture#updateTexImage()}.
+     *
+     * @param surface The surface just updated
+     */
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+    }
+
 
     /**
      * Set the glWrapper. If the glWrapper is not null, its
@@ -288,10 +345,10 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
     }
 
     /**
-     * Control whether the EGL context is preserved when the GLSurfaceView is paused and
+     * Control whether the EGL context is preserved when the GLTextureView is paused and
      * resumed.
      * <p>
-     * If set to true, then the EGL context may be preserved when the GLSurfaceView is paused.
+     * If set to true, then the EGL context may be preserved when the GLTextureView is paused.
      * <p>
      * Prior to API level 11, whether the EGL context is actually preserved or not
      * depends upon whether the Android device can support an arbitrary number of
@@ -299,8 +356,8 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * contexts must release the EGL context in order to allow multiple applications
      * to share the GPU.
      * <p>
-     * If set to false, the EGL context will be released when the GLSurfaceView is paused,
-     * and recreated when the GLSurfaceView is resumed.
+     * If set to false, the EGL context will be released when the GLTextureView is paused,
+     * and recreated when the GLTextureView is resumed.
      * <p>
      *
      * The default is false.
@@ -322,8 +379,8 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * Set the renderer associated with this view. Also starts the thread that
      * will call the renderer, which in turn causes the rendering to start.
      * <p>This method should be called once and only once in the life-cycle of
-     * a GLSurfaceView.
-     * <p>The following GLSurfaceView methods can only be called <em>before</em>
+     * a GLTextureView.
+     * <p>The following GLTextureView methods can only be called <em>before</em>
      * setRenderer is called:
      * <ul>
      * <li>{@link #setEGLConfigChooser(boolean)}
@@ -331,7 +388,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * <li>{@link #setEGLConfigChooser(int, int, int, int, int, int)}
      * </ul>
      * <p>
-     * The following GLSurfaceView methods can only be called <em>after</em>
+     * The following GLTextureView methods can only be called <em>after</em>
      * setRenderer is called:
      * <ul>
      * <li>{@link #getRenderMode()}
@@ -517,51 +574,51 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
     }
 
     /**
-     * This method is part of the SurfaceHolder.Callback interface, and is
-     * not normally called or subclassed by clients of GLSurfaceView.
+     * This method is part of the SurfaceTexture.Callback interface, and is
+     * not normally called or subclassed by clients of GLTextureView.
      */
-    public void surfaceCreated(SurfaceHolder holder) {
+    public void surfaceCreated(SurfaceTexture holder) {
         mGLThread.surfaceCreated();
     }
 
     /**
-     * This method is part of the SurfaceHolder.Callback interface, and is
-     * not normally called or subclassed by clients of GLSurfaceView.
+     * This method is part of the SurfaceTexture.Callback interface, and is
+     * not normally called or subclassed by clients of GLTextureView.
      */
-    public void surfaceDestroyed(SurfaceHolder holder) {
+    public void surfaceDestroyed(SurfaceTexture holder) {
         // Surface will be destroyed when we return
         mGLThread.surfaceDestroyed();
     }
 
     /**
-     * This method is part of the SurfaceHolder.Callback interface, and is
-     * not normally called or subclassed by clients of GLSurfaceView.
+     * This method is part of the SurfaceTexture.Callback interface, and is
+     * not normally called or subclassed by clients of GLTextureView.
      */
-    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+    public void surfaceChanged(SurfaceTexture holder, int format, int w, int h) {
         mGLThread.onWindowResize(w, h);
     }
 
-    /**
-     * This method is part of the SurfaceHolder.Callback2 interface, and is
-     * not normally called or subclassed by clients of GLSurfaceView.
-     */
-    @Override
-    public void surfaceRedrawNeededAsync(SurfaceHolder holder, Runnable finishDrawing) {
-        if (mGLThread != null) {
-            mGLThread.requestRenderAndNotify(finishDrawing);
-        }
-    }
+    // /**
+    //  * This method is part of the SurfaceTexture.Callback2 interface, and is
+    //  * not normally called or subclassed by clients of GLTextureView.
+    //  */
+    // @Override
+    // public void surfaceRedrawNeededAsync(SurfaceTexture holder, Runnable finishDrawing) {
+    //     if (mGLThread != null) {
+    //         mGLThread.requestRenderAndNotify(finishDrawing);
+    //     }
+    // }
 
-    /**
-     * This method is part of the SurfaceHolder.Callback2 interface, and is
-     * not normally called or subclassed by clients of GLSurfaceView.
-     */
-    @Deprecated
-    @Override
-    public void surfaceRedrawNeeded(SurfaceHolder holder) {
-        // Since we are part of the framework we know only surfaceRedrawNeededAsync
-        // will be called.
-    }
+    // /**
+    //  * This method is part of the SurfaceTexture.Callback2 interface, and is
+    //  * not normally called or subclassed by clients of GLTextureView.
+    //  */
+    // @Deprecated
+    // @Override
+    // public void surfaceRedrawNeeded(SurfaceTexture holder) {
+    //     // Since we are part of the framework we know only surfaceRedrawNeededAsync
+    //     // will be called.
+    // }
 
 
     /**
@@ -569,7 +626,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * depending upon the value of {@link #setPreserveEGLContextOnPause(boolean)}.
      *
      * This method should be called when it is no longer desirable for the
-     * GLSurfaceView to continue rendering, such as in response to
+     * GLTextureView to continue rendering, such as in response to
      * {@link android.app.Activity#onStop Activity.onStop}.
      *
      * Must not be called before a renderer has been set.
@@ -603,7 +660,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
 
     /**
      * This method is used as part of the View class and is not normally
-     * called or subclassed by clients of GLSurfaceView.
+     * called or subclassed by clients of GLTextureView.
      */
     @Override
     protected void onAttachedToWindow() {
@@ -674,9 +731,9 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * <p>
      * The renderer is responsible for making OpenGL calls to render a frame.
      * <p>
-     * GLSurfaceView clients typically create their own classes that implement
-     * this interface, and then call {@link GLSurfaceView#setRenderer} to
-     * register the renderer with the GLSurfaceView.
+     * GLTextureView clients typically create their own classes that implement
+     * this interface, and then call {@link GLTextureView#setRenderer} to
+     * register the renderer with the GLTextureView.
      * <p>
      *
      * <div class="special reference">
@@ -691,7 +748,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * communicate with the renderer from the UI thread, because that's where
      * input events are received. Clients can communicate using any of the
      * standard Java techniques for cross-thread communication, or they can
-     * use the {@link GLSurfaceView#queueEvent(Runnable)} convenience method.
+     * use the {@link GLTextureView#queueEvent(Runnable)} convenience method.
      * <p>
      * <h3>EGL Context Lost</h3>
      * There are situations where the EGL rendering context will be lost. This
@@ -779,7 +836,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * An interface for customizing the eglCreateContext and eglDestroyContext calls.
      * <p>
      * This interface must be implemented by clients wishing to call
-     * {@link GLSurfaceView#setEGLContextFactory(EGLContextFactory)}
+     * {@link GLTextureView#setEGLContextFactory(EGLContextFactory)}
      */
     public interface EGLContextFactory {
         EGLContext createContext(EGL10 egl, EGLDisplay display, EGLConfig eglConfig);
@@ -813,7 +870,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * An interface for customizing the eglCreateWindowSurface and eglDestroySurface calls.
      * <p>
      * This interface must be implemented by clients wishing to call
-     * {@link GLSurfaceView#setEGLWindowSurfaceFactory(EGLWindowSurfaceFactory)}
+     * {@link GLTextureView#setEGLWindowSurfaceFactory(EGLWindowSurfaceFactory)}
      */
     public interface EGLWindowSurfaceFactory {
         /**
@@ -835,7 +892,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                 // This exception indicates that the surface flinger surface
                 // is not valid. This can happen if the surface flinger surface has
                 // been torn down, but the application has not yet been
-                // notified via SurfaceHolder.Callback.surfaceDestroyed.
+                // notified via SurfaceTexture.Callback.surfaceDestroyed.
                 // In theory the application should be notified first,
                 // but in practice sometimes it is not. See b/4588890
                 Log.e(TAG, "eglCreateWindowSurface", e);
@@ -854,7 +911,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      * potential configurations.
      * <p>
      * This interface must be implemented by clients wishing to call
-     * {@link GLSurfaceView#setEGLConfigChooser(EGLConfigChooser)}
+     * {@link GLTextureView#setEGLConfigChooser(EGLConfigChooser)}
      */
     public interface EGLConfigChooser {
         /**
@@ -1012,8 +1069,8 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      */
 
     private static class EglHelper {
-        public EglHelper(WeakReference<GLSurfaceView> glSurfaceViewWeakRef) {
-            mGLSurfaceViewWeakRef = glSurfaceViewWeakRef;
+        public EglHelper(WeakReference<GLTextureView> glSurfaceViewWeakRef) {
+            mGLTextureViewWeakRef = glSurfaceViewWeakRef;
         }
 
         /**
@@ -1045,7 +1102,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
             if(!mEgl.eglInitialize(mEglDisplay, version)) {
                 throw new RuntimeException("eglInitialize failed");
             }
-            GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+            GLTextureView view = mGLTextureViewWeakRef.get();
             if (view == null) {
                 mEglConfig = null;
                 mEglContext = null;
@@ -1070,7 +1127,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
         }
 
         /**
-         * Create an egl surface for the current SurfaceHolder surface. If a surface
+         * Create an egl surface for the current SurfaceTexture surface. If a surface
          * already exists, destroy it before creating the new surface.
          *
          * @return true if the surface was created successfully.
@@ -1101,10 +1158,10 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
             /*
              * Create an EGL surface we can render into.
              */
-            GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+            GLTextureView view = mGLTextureViewWeakRef.get();
             if (view != null) {
                 mEglSurface = view.mEGLWindowSurfaceFactory.createWindowSurface(mEgl,
-                        mEglDisplay, mEglConfig, view.getHolder());
+                        mEglDisplay, mEglConfig, view.getSurfaceTexture());
             } else {
                 mEglSurface = null;
             }
@@ -1140,7 +1197,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
         GL createGL() {
 
             GL gl = mEglContext.getGL();
-            GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+            GLTextureView view = mGLTextureViewWeakRef.get();
             if (view != null) {
                 if (view.mGLWrapper != null) {
                     gl = view.mGLWrapper.wrap(gl);
@@ -1184,7 +1241,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                 mEgl.eglMakeCurrent(mEglDisplay, EGL10.EGL_NO_SURFACE,
                         EGL10.EGL_NO_SURFACE,
                         EGL10.EGL_NO_CONTEXT);
-                GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                GLTextureView view = mGLTextureViewWeakRef.get();
                 if (view != null) {
                     view.mEGLWindowSurfaceFactory.destroySurface(mEgl, mEglDisplay, mEglSurface);
                 }
@@ -1197,7 +1254,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                 Log.w("EglHelper", "finish() tid=" + Thread.currentThread().getId());
             }
             if (mEglContext != null) {
-                GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                GLTextureView view = mGLTextureViewWeakRef.get();
                 if (view != null) {
                     view.mEGLContextFactory.destroyContext(mEgl, mEglDisplay, mEglContext);
                 }
@@ -1230,7 +1287,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
             return function + " failed: " + EGLLogWrapper.getErrorString(error);
         }
 
-        private WeakReference<GLSurfaceView> mGLSurfaceViewWeakRef;
+        private WeakReference<GLTextureView> mGLTextureViewWeakRef;
         EGL10 mEgl;
         EGLDisplay mEglDisplay;
         EGLSurface mEglSurface;
@@ -1249,14 +1306,14 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
      *
      */
     static class GLThread extends Thread {
-        GLThread(WeakReference<GLSurfaceView> glSurfaceViewWeakRef) {
+        GLThread(WeakReference<GLTextureView> glSurfaceViewWeakRef) {
             super();
             mWidth = 0;
             mHeight = 0;
             mRequestRender = true;
             mRenderMode = RENDERMODE_CONTINUOUSLY;
             mWantRenderNotification = false;
-            mGLSurfaceViewWeakRef = glSurfaceViewWeakRef;
+            mGLTextureViewWeakRef = glSurfaceViewWeakRef;
         }
 
         @Override
@@ -1298,7 +1355,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
             }
         }
         private void guardedRun() throws InterruptedException {
-            mEglHelper = new EglHelper(mGLSurfaceViewWeakRef);
+            mEglHelper = new EglHelper(mGLTextureViewWeakRef);
             mHaveEglContext = false;
             mHaveEglSurface = false;
             mWantRenderNotification = false;
@@ -1369,7 +1426,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
 
                             // When pausing, optionally release the EGL Context:
                             if (pausing && mHaveEglContext) {
-                                GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                                GLTextureView view = mGLTextureViewWeakRef.get();
                                 boolean preserveEglContextOnPause = view == null ?
                                         false : view.mPreserveEGLContextOnPause;
                                 if (!preserveEglContextOnPause) {
@@ -1532,13 +1589,13 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                         if (LOG_RENDERER) {
                             Log.w("GLThread", "onSurfaceCreated");
                         }
-                        GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                        GLTextureView view = mGLTextureViewWeakRef.get();
                         if (view != null) {
                             try {
-                                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "onSurfaceCreated");
+                                // Trace.traceBegin(TRACE_TAG_VIEW, "onSurfaceCreated");
                                 view.mRenderer.onSurfaceCreated(gl, mEglHelper.mEglConfig);
                             } finally {
-                                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+                                // Trace.traceEnd(TRACE_TAG_VIEW);
                             }
                         }
                         createEglContext = false;
@@ -1548,13 +1605,13 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                         if (LOG_RENDERER) {
                             Log.w("GLThread", "onSurfaceChanged(" + w + ", " + h + ")");
                         }
-                        GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                        GLTextureView view = mGLTextureViewWeakRef.get();
                         if (view != null) {
                             try {
-                                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "onSurfaceChanged");
+                                // Trace.traceBegin(TRACE_TAG_VIEW, "onSurfaceChanged");
                                 view.mRenderer.onSurfaceChanged(gl, w, h);
                             } finally {
-                                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+                                // Trace.traceEnd(TRACE_TAG_VIEW);
                             }
                         }
                         sizeChanged = false;
@@ -1564,17 +1621,17 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                         Log.w("GLThread", "onDrawFrame tid=" + getId());
                     }
                     {
-                        GLSurfaceView view = mGLSurfaceViewWeakRef.get();
+                        GLTextureView view = mGLTextureViewWeakRef.get();
                         if (view != null) {
                             try {
-                                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "onDrawFrame");
+                                // Trace.traceBegin(TRACE_TAG_VIEW, "onDrawFrame");
                                 view.mRenderer.onDrawFrame(gl);
                                 if (finishDrawingRunnable != null) {
                                     finishDrawingRunnable.run();
                                     finishDrawingRunnable = null;
                                 }
                             } finally {
-                                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+                                // Trace.traceEnd(TRACE_TAG_VIEW);
                             }
                         }
                     }
@@ -1848,10 +1905,10 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
 
         /**
          * Set once at thread construction time, nulled out when the parent view is garbage
-         * called. This weak reference allows the GLSurfaceView to be garbage collected while
+         * called. This weak reference allows the GLTextureView to be garbage collected while
          * the GLThread is still alive.
          */
-        private WeakReference<GLSurfaceView> mGLSurfaceViewWeakRef;
+        private WeakReference<GLTextureView> mGLTextureViewWeakRef;
 
     }
 
@@ -1879,7 +1936,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
 
         private void flushBuilder() {
             if (mBuilder.length() > 0) {
-                Log.v("GLSurfaceView", mBuilder.toString());
+                Log.v("GLTextureView", mBuilder.toString());
                 mBuilder.delete(0, mBuilder.length());
             }
         }
@@ -1917,8 +1974,8 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
 
     private static final GLThreadManager sGLThreadManager = new GLThreadManager();
 
-    private final WeakReference<GLSurfaceView> mThisWeakRef =
-            new WeakReference<GLSurfaceView>(this);
+    private final WeakReference<GLTextureView> mThisWeakRef =
+            new WeakReference<GLTextureView>(this);
     private GLThread mGLThread;
     private Renderer mRenderer;
     private boolean mDetached;

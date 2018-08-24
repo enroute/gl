@@ -62,7 +62,8 @@ public class GLActivity extends Activity {
 
         if (supportsEs2) {
             glSurfaceView.setEGLContextClientVersion(2);
-            glSurfaceView.setRenderer(new GLRenderer());
+            // glSurfaceView.setRenderer(new GLRenderer());
+            glSurfaceView.setRenderer(new AirHockeyRenderer(this));
             rendererSet = true;
         } else {
             // the device does not support OpenGL ES 2.0

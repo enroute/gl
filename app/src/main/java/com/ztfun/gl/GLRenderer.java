@@ -25,17 +25,17 @@ public class GLRenderer implements Renderer {
 
     // Implementation of android.opengl.GLSurfaceView$Renderer
     @Override
-    public final void onSurfaceCreated(final GL10 glUnused, final EGLConfig config) {
+    public void onSurfaceCreated(final GL10 glUnused, final EGLConfig config) {
         glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
     }
 
     @Override
-    public final void onSurfaceChanged(final GL10 glUnused, int width, final int height) {
+    public void onSurfaceChanged(final GL10 glUnused, int width, final int height) {
         glViewport(0, 0, width, height);
     }
 
     @Override
-    public final void onDrawFrame(final GL10 glUnused) {
+    public void onDrawFrame(final GL10 glUnused) {
         glClear(GL_COLOR_BUFFER_BIT);
     }
 }
